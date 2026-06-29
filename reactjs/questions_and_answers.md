@@ -110,12 +110,12 @@
 | Q102 | What is a `default export`? How do you export and import it? | ✅ |
 | Q103 | What is a `named export`? How do you export and import it? | ✅ |
 | Q104 | What is the difference between `default export` and `named export`? | ✅ |
-| Q105 | Can a module have both a `default export` and `named export`? | ❌ |
-| Q106 | What is `export * from '...'`? When is it used? | ❌ |
-| Q107 | What is `export { x as default }` and how does it differ from `export default x`? | ❌ |
-| Q108 | What is a barrel file (index file) pattern? What are its pros and cons? | ❌ |
-| Q109 | What is dynamic `import()`? How does it differ from static `import`? | ❌ |
-| Q110 | How does tree-shaking work and why do named exports support it better? | ❌ |
+| Q105 | Can a module have both a `default export` and `named export`? | ✅ |
+| Q106 | What is `export * from '...'`? When is it used? | ✅ |
+| Q107 | What is `export { x as default }` and how does it differ from `export default x`? | ✅ |
+| Q108 | What is a barrel file (index file) pattern? What are its pros and cons? | ✅ |
+| Q109 | What is dynamic `import()`? How does it differ from static `import`? | ✅ |
+| Q110 | How does tree-shaking work and why do named exports support it better? | ✅ |
 
 ---
 
@@ -1089,7 +1089,27 @@
 
 > **Answer:**
 >
-> &nbsp;
+> **Yes.** A module can have exactly one `default export` and any number of `named exports` simultaneously.
+>
+> ```js
+> // math.js
+> export const PI = 3.14;          // named export
+> export const E  = 2.718;         // named export
+>
+> export default function add(a, b) { // default export
+>   return a + b;
+> }
+> ```
+>
+> Importing them together:
+>
+> ```js
+> import add, { PI, E } from './math.js';
+> // add  → default export
+> // PI, E → named exports
+> ```
+>
+> The default import name (`add`) is chosen freely by the importer; named imports must match the exported name (or be aliased with `as`).
 
 ---
 
@@ -1097,7 +1117,28 @@
 
 > **Answer:**
 >
-> &nbsp;
+> `export * from '...'` re-exports **all named exports** from another module without importing them into the current file first. It is commonly used in **barrel/index files** to aggregate exports from many modules into a single entry point.
+>
+> ```js
+> // components/index.js
+> export * from './Button';
+> export * from './Input';
+> export * from './Modal';
+> ```
+>
+> Consumers can then import from one place:
+>
+> ```js
+> import { Button, Input, Modal } from './components';
+> ```
+>
+> **Important caveat:** `export *` does **not** re-export the `default` export of the source module. To re-export a default you must write it explicitly:
+>
+> ```js
+> export { default } from './Button';
+> // or
+> export { default as Button } from './Button';
+> ```
 
 ---
 
@@ -1105,7 +1146,25 @@
 
 > **Answer:**
 >
-> &nbsp;
+> Both make a value the **default export**, but they behave slightly differently:
+>
+> | | `export default x` | `export { x as default }` |
+> |---|---|---|
+> | What is exported | The **value** of `x` at the point of the statement | The **live binding** to `x` |
+> | Where `x` must be declared | Can be an inline expression (e.g. `export default 42`) | `x` must already be declared in scope |
+> | Main use-case | Normal single-file default export | Re-exporting another module's export as default |
+>
+> ```js
+> // export default x — inline expression, value is evaluated immediately
+> export default function greet() { return 'hello'; }
+>
+> // export { x as default } — live binding, x must exist
+> function greet() { return 'hello'; }
+> export { greet as default };
+>
+> // Most useful for re-exporting:
+> export { someFunction as default } from './utils';
+> ```
 
 ---
 
@@ -1113,7 +1172,34 @@
 
 > **Answer:**
 >
-> &nbsp;
+> A **barrel file** is an `index.js` (or `index.ts`) that collects and re-exports from multiple modules in the same directory, providing a single unified entry point.
+>
+> ```js
+> // components/index.js  ← barrel file
+> export { Button }   from './Button';
+> export { Input }    from './Input';
+> export { Modal }    from './Modal';
+> ```
+>
+> ```js
+> // Before barrel — verbose
+> import { Button } from './components/Button';
+> import { Input }  from './components/Input';
+>
+> // After barrel — clean
+> import { Button, Input } from './components';
+> ```
+>
+> **Pros:**
+> - Cleaner, shorter import paths for consumers.
+> - Hides internal file structure (implementation detail).
+> - Easy to reorganize internals without changing import paths.
+>
+> **Cons:**
+> - Can hurt **tree-shaking** if the bundler cannot statically analyse all re-exports.
+> - May cause **slow builds** in large projects (many modules loaded eagerly).
+> - Risk of **circular dependency** issues when modules inside the barrel import each other.
+> - `export *` style barrels can accidentally re-export unintended symbols.
 
 ---
 
@@ -1121,7 +1207,36 @@
 
 > **Answer:**
 >
-> &nbsp;
+> | | Static `import` | Dynamic `import()` |
+> |---|---|---|
+> | When it loads | **At parse/compile time** (eagerly) | **At runtime** (lazily) |
+> | Return value | Binding (synchronous) | `Promise<module>` |
+> | Location | Top-level only | Anywhere in code |
+> | Tree-shakeable | Yes | Harder for bundlers |
+>
+> ```js
+> // Static import — resolved before code runs
+> import { add } from './math.js';
+>
+> // Dynamic import — returns a Promise, loaded on demand
+> const { add } = await import('./math.js');
+>
+> // Useful for conditional or lazy loading
+> if (needsChart) {
+>   const { Chart } = await import('./Chart.js');
+>   new Chart(data);
+> }
+> ```
+>
+> **Common use-cases for dynamic import:**
+> - **Code splitting** — load heavy components only when needed (React.lazy).
+> - **Conditional imports** — load a polyfill only when the browser lacks support.
+> - **User-triggered loading** — load a module only after a button click.
+>
+> In React:
+> ```js
+> const Chart = React.lazy(() => import('./Chart'));
+> ```
 
 ---
 
@@ -1129,6 +1244,35 @@
 
 > **Answer:**
 >
-> &nbsp;
+> **Tree-shaking** is a dead-code elimination technique performed by bundlers (Rollup, Webpack, Vite) during build time. It statically analyses the `import`/`export` graph and removes any exports that are never imported — shrinking the final bundle.
+>
+> **Why named exports are more tree-shakeable:**
+>
+> Named exports expose individual, **statically-named bindings**. The bundler can see exactly which names are imported and exclude the rest.
+>
+> ```js
+> // utils.js
+> export function formatDate(d) { ... }   // named
+> export function parseDate(s) { ... }    // named
+>
+> // consumer.js
+> import { formatDate } from './utils';   // parseDate is never imported → removed from bundle
+> ```
+>
+> Default exports often export a **single object or class** that bundles everything together. The bundler cannot tell which properties of that object are used at runtime.
+>
+> ```js
+> // utils.js
+> export default {
+>   formatDate(d) { ... },
+>   parseDate(s) { ... },   // bundler keeps both — can't know which is used
+> };
+>
+> // consumer.js
+> import utils from './utils';
+> utils.formatDate(new Date());   // parseDate is unused but still in the bundle
+> ```
+>
+> **Summary:** Use named exports in utility/library code so bundlers can eliminate unused functions. Default exports are fine for components or modules that are always used as a whole.
 
 ---
